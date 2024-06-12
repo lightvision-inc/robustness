@@ -14,6 +14,33 @@ Requires Python 3+ and PyTorch 0.3+. For evaluation, please download the data fr
 
 Tiny ImageNet-C has 200 classes with images of size 64x64, while ImageNet-C has all 1000 classes where each image is the standard size. For even quicker experimentation, there is [CIFAR-10-C](https://zenodo.org/record/2535967) and [CIFAR-100-C](https://zenodo.org/record/3555552). Evaluation using the JPEGs above is strongly prefered to computing the corruptions in memory, so that evaluation is deterministic and consistent.
 
+## Make ImageNet-C
+This code has been updated to augmentate the imagea and create dataset for benchmarks.
+You can choose the type of distortion and severity of distortion.
+```
+python ImageNet-C/create_c/make_imagenet_c.py  --data_dir ./data	\
+					--save_dir ./aumentated_dataset	\
+					--gaussian_noise 	\
+					--shot_noise 	\
+					--impulse_noise 	\
+					--defocus_blur 	\
+					--glass_blur	\
+					--motion_blur	\
+					--zoom_blur	\
+					--snow	\
+					--frost	\
+					--fog	\
+					--brightness	\
+					--constrast	\
+					--elastic_transform	\
+					--pixelate	\
+					--jepg_compression	\
+					--speckle_noise	\
+					--gaussian_blur	\
+					--spatter	\
+					--saturate 	\
+```
+
 ## ImageNet-C Leaderboard
 
 ImageNet-C Robustness with a ResNet-50 Backbone trained on ImageNet-1K and evaluated on 224x224x3 images.
