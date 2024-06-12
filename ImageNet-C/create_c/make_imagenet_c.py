@@ -79,7 +79,7 @@ def default_loader(path):
 
 
 class DistortImageFolder(data.Dataset):
-    def __init__(self, root, method, severity, transform=None, target_transform=None,
+    def __init__(self, args, root, method, severity, transform=None, target_transform=None,
                  loader=default_loader):
         classes, class_to_idx = find_classes(root)
         imgs = make_dataset(root, class_to_idx)
@@ -87,7 +87,8 @@ class DistortImageFolder(data.Dataset):
             raise (RuntimeError("Found 0 images in subfolders of: " + root + "\n"
                                                                              "Supported image extensions are: " + ",".join(
                 IMG_EXTENSIONS)))
-
+        
+        self.args = args
         self.root = root
         self.method = method
         self.severity = severity
@@ -108,13 +109,13 @@ class DistortImageFolder(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        save_path = '/share/data/vision-greg/DistortedImageNet/JPEG/' + self.method.__name__ + \
+        save_path = self.args.save_dir+'/' + self.method.__name__ + \
                     '/' + str(self.severity) + '/' + self.idx_to_class[target]
 
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
-        save_path += path[path.rindex('/'):]
+        save_path += path[path.rindex('\\'):]
 
         Image.fromarray(np.uint8(img)).save(save_path, quality=85, optimize=True)
 
@@ -289,7 +290,7 @@ def fgsm(x, source_net, severity=1):
 def gaussian_blur(x, severity=1):
     c = [1, 2, 3, 4, 6][severity - 1]
 
-    x = gaussian(np.array(x) / 255., sigma=c, multichannel=True)
+    x = gaussian(np.array(x) / 255., sigma=c)
     return np.clip(x, 0, 1) * 255
 
 
@@ -297,7 +298,7 @@ def glass_blur(x, severity=1):
     # sigma, max_delta, iterations
     c = [(0.7, 1, 2), (0.9, 2, 1), (1, 2, 3), (1.1, 3, 2), (1.5, 4, 2)][severity - 1]
 
-    x = np.uint8(gaussian(np.array(x) / 255., sigma=c[0], multichannel=True) * 255)
+    x = np.uint8(gaussian(np.array(x) / 255., sigma=c[0]) * 255)
 
     # locally shuffle pixels
     for i in range(c[2]):
@@ -308,7 +309,7 @@ def glass_blur(x, severity=1):
                 # swap
                 x[h, w], x[h_prime, w_prime] = x[h_prime, w_prime], x[h, w]
 
-    return np.clip(gaussian(x / 255., sigma=c[0], multichannel=True), 0, 1) * 255
+    return np.clip(gaussian(x / 255., sigma=c[0]), 0, 1) * 255
 
 
 def defocus_blur(x, severity=1):
@@ -574,13 +575,16 @@ def elastic_transform(image, severity=1):
 # /////////////// Further Setup ///////////////
 
 
-def save_distorted(method=gaussian_noise):
-    for severity in range(1, 6):
+def save_distorted(args, method=gaussian_noise, level=[1,2,3,4,5]):
+    for severity in level:
         print(method.__name__, severity)
         distorted_dataset = DistortImageFolder(
-            root="/share/data/vision-greg/ImageNet/clsloc/images/val",
+            args = args,
+            root=args.data_dir,
             method=method, severity=severity,
-            transform=trn.Compose([trn.Resize(256), trn.CenterCrop(224)]))
+            transform=trn.Resize(224)
+            #transform=trn.Compose([trn.Resize(256), trn.CenterCrop(224)])
+            )
         distorted_dataset_loader = torch.utils.data.DataLoader(
             distorted_dataset, batch_size=100, shuffle=False, num_workers=4)
 
@@ -592,30 +596,99 @@ def save_distorted(method=gaussian_noise):
 
 # /////////////// Display Results ///////////////
 import collections
+import argparse
 
-print('\nUsing ImageNet data')
+if __name__=='__main__':
 
-d = collections.OrderedDict()
-d['Gaussian Noise'] = gaussian_noise
-d['Shot Noise'] = shot_noise
-d['Impulse Noise'] = impulse_noise
-d['Defocus Blur'] = defocus_blur
-d['Glass Blur'] = glass_blur
-d['Motion Blur'] = motion_blur
-d['Zoom Blur'] = zoom_blur
-d['Snow'] = snow
-d['Frost'] = frost
-d['Fog'] = fog
-d['Brightness'] = brightness
-d['Contrast'] = contrast
-d['Elastic'] = elastic_transform
-d['Pixelate'] = pixelate
-d['JPEG'] = jpeg_compression
+    print('\nUsing ImageNet data')
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', type=str, default='./image')
+    parser.add_argument('--save_dir', type=str, default='./augmentated_dataset')
+    
+    parser.add_argument('--gaussian_noise', type=int,  nargs='+',default=0, help="gaussian noise level list")
+    parser.add_argument('--shot_noise', type=int,  nargs='+',default=0, help="shot noise level list")
+    parser.add_argument('--impulse_noise', type=int,  nargs='+',default=0, help="impulse noise level list")
+    parser.add_argument('--defocus_blur', type=int,  nargs='+',default=0, help="defocus blur level list")
+    parser.add_argument('--glass_blur', type=int,  nargs='+',default=0, help="glass blur level list")
+    parser.add_argument('--motion_blur', type=int,  nargs='+',default=0, help="motion blur level list")
+    parser.add_argument('--zoom_blur', type=int,  nargs='+',default=0, help="zoom blur level list")
+    parser.add_argument('--snow', type=int,  nargs='+',default=0, help="snow level list")
+    parser.add_argument('--frost', type=int,  nargs='+',default=0, help="frost level list")
+    parser.add_argument('--fog', type=int,  nargs='+',default=0, help="fog level list")
+    parser.add_argument('--brightness', type=int,  nargs='+',default=0, help="brightness level list")
+    parser.add_argument('--constrast', type=int,  nargs='+',default=0, help="constrast level list")
+    parser.add_argument('--elastic_transform', type=int,  nargs='+',default=0, help="elastic transform level list")
+    parser.add_argument('--pixelate', type=int,  nargs='+',default=0, help="pixelate level list")
+    parser.add_argument('--jepg_compression', type=int,  nargs='+',default=0, help="jepg_compression level list")
+    parser.add_argument('--speckle_noise', type=int,  nargs='+',default=0, help="speckle noise level list")
+    parser.add_argument('--gaussian_blur', type=int,  nargs='+',default=0, help="gaussian blur level list")
+    parser.add_argument('--spatter', type=int,  nargs='+',default=0, help="spatter level list")
+    parser.add_argument('--saturate', type=int,  nargs='+',default=0, help="saturate level list")
 
-d['Speckle Noise'] = speckle_noise
-d['Gaussian Blur'] = gaussian_blur
-d['Spatter'] = spatter
-d['Saturate'] = saturate
+    args=parser.parse_args()
 
-for method_name in d.keys():
-    save_distorted(d[method_name])
+    d = collections.OrderedDict()
+    ld = collections.OrderedDict()
+    
+    if(args.gaussian_noise):
+        d['Gaussian Noise'] = gaussian_noise
+        ld['Gaussian Noise'] = args.gaussian_noise
+    if(args.shot_noise):
+        d['Shot Noise'] = shot_noise 
+        ld['Shot Noise'] = args.shot_noise
+    if(args.impulse_noise): 
+        d['Impulse Noise'] = impulse_noise
+        ld['Impulse Noise'] = args.impulse_noise
+    if(args.defocus_blur): 
+        d['Defocus Blur'] = defocus_blur
+        ld['Defocus Blur'] = args.defocus_blur
+    if(args.glass_blur): 
+        d['Glass Blur'] = glass_blur
+        ld['Glass Blur'] = args.glass_blur
+    if(args.motion_blur): 
+        d['Motion Blur'] = motion_blur
+        ld['Motion Blur'] = args.motion_blur
+    if(args.zoom_blur): 
+        d['Zoom Blur'] = zoom_blur
+        ld['Zoom Blur'] = args.zoom_blur
+    if(args.snow): 
+        d['Snow'] = snow
+        ld['Snow'] = args.snow
+    if(args.frost): 
+        d['Frost'] = frost
+        ld['Frost'] = args.frost
+    if(args.frost): 
+        d['Fog'] = fog
+        ld['Fog'] = args.fog
+    if(args.frost): 
+        d['Brightness'] = brightness
+        ld['Brightness'] = args.brightness
+    if(args.frost): 
+        d['Contrast'] = contrast
+        ld['Contrast'] = args.contrast
+    if(args.frost): 
+        d['Elastic'] = elastic_transform
+        ld['Elastic'] = args.elastic_transform
+    if(args.frost): 
+        d['Pixelate'] = pixelate
+        ld['Pixelate'] = args.pixelate
+    if(args.frost): 
+        d['JPEG'] = jpeg_compression
+        ld['JPEG'] = args.jepg_compression
+    
+    if(args.frost): 
+        d['Speckle Noise'] = speckle_noise
+        ld['Speckle Noise'] = args.speckle_noise
+    if(args.frost): 
+        d['Gaussian Blur'] = gaussian_blur
+        ld['Gaussian Blur'] = args.gaussian_blur
+    if(args.frost): 
+        d['Spatter'] = spatter
+        ld['Spatter'] = args.spatter
+    if(args.frost): 
+        d['Saturate'] = saturate
+        ld['Saturate'] = args.saturate
+
+    for method_name in d.keys():
+        save_distorted(args, d[method_name], ld[method_name])
